@@ -1,0 +1,300 @@
+#pragma region VEXcode Generated Robot Configuration
+// Make sure all required headers are included.
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <math.h>
+#include <string.h>
+
+#include "vex.h"
+
+using namespace vex;
+
+// Brain should be defined by default
+brain Brain;
+
+// START V5 MACROS
+#define waitUntil(condition)                                                   \
+  do {                                                                         \
+    wait(5, msec);                                                             \
+  } while (!(condition))
+
+#define repeat(iterations)                                                     \
+  for (int iterator = 0; iterator < iterations; iterator++)
+// END V5 MACROS
+
+// Robot configuration code.
+
+// generating and setting random seed
+void initializeRandomSeed(){
+  int systemTime = Brain.Timer.systemHighResolution();
+  double batteryCurrent = Brain.Battery.current();
+  double batteryVoltage = Brain.Battery.voltage(voltageUnits::mV);
+
+  // Combine these values into a single integer
+  int seed = int(batteryVoltage + batteryCurrent * 100) + systemTime;
+
+  // Set the seed
+  srand(seed);
+}
+
+void vexcodeInit() {
+  //Initializing random seed.
+  initializeRandomSeed();
+}
+
+// Helper to make playing sounds from the V5 in VEXcode easier and
+// keeps the code cleaner by making it clear what is happening.
+void playVexcodeSound(const char *soundName) {
+  printf("VEXPlaySound:%s\n", soundName);
+  wait(5, msec);
+}
+
+#pragma endregion VEXcode Generated Robot Configuration
+
+#include <cmath>
+#include <cstdlib>
+#include <cstdio>
+
+using namespace vex;
+
+/******************************************************************************
+*  VEX V5 Robot Code – Push Back 2026
+*  Author: Nathan Owens, Caitlin Ndambuki
+*  Tournament-Ready Version
+*  Features:
+*    - Arcade drive: forward/back + turning simultaneously
+*    - Arm moves independently
+*    - Intake spins automatically when arm moves
+*    - Smooth ramping for motors
+*
+*  1 - Intake (blue)
+*  3 - Right Lift(red) LiftR
+*  4 - Back Right Motor (blue) R1
+*  6 - Wifi
+*  9 - Left Lift (red) LiftL
+*  10 - Back left driver (blue) L1
+*  20 - front left (blue) L2
+*  12- Front right driver(blue)R2
+******************************************************************************/
+
+/*================== GLOBAL OBJECTS ==================*/
+controller  Controller;
+competition Competition;
+
+/*================== DRIVE MOTORS ==================*/
+motor L1(PORT10, ratio36_1, true);
+motor L2(PORT20, ratio36_1, true);
+motor R1(PORT4, ratio36_1, false);
+motor R2(PORT12, ratio36_1, false);
+
+/*================== LIFT MOTORS ==================*/
+motor LiftL(PORT9, ratio36_1, false);
+motor LiftR(PORT3, ratio36_1, true);
+
+/*================== ARM & INTAKE MOTORS ==================*/
+motor Arm(PORT2, ratio36_1, true);
+motor Intake(PORT1, ratio36_1, false);
+
+// Ultrasonic sensor (assume using a VEX V5 Ultrasonic sensor)
+sonar inPutSonar(Brain.ThreeWirePort.A);
+sonar outPutSonar(Brain.ThreeWirePort.B);
+
+/*================== HELPER FUNCTIONS ==================*/
+// Smooth ramp: current -> target at given step
+double ramp(double current, double target, double step) {
+   if (current < target) {
+       current += step;
+       if (current > target) current = target;
+   } else if (current > target) {
+       current -= step;
+       if (current < target) current = target;
+   }
+   return current;
+}
+
+// Lift motor wrapper
+void moveLift(double power) {
+   LiftL.spin(fwd, power, pct);
+   LiftR.spin(fwd, power, pct);
+}
+
+// Move arm independently
+void moveArm(double power) {
+   Arm.spin(fwd, power, pct);
+}
+
+// Intake spins forward automatically whenever the arm moves
+void moveIntakeWithArm(double armPower) {
+  /*
+   if (armPower != 0) {
+       Intake.spin(fwd, 100, pct); // intake spins forward whenever arm moves
+   } else {
+       Intake.stop(hold); // stop intake when arm stops
+   }
+  */
+}
+
+/*================== PRE-AUTONOMOUS ==================*/
+void pre_auton() {
+   // Motor stopping modes
+   L1.setStopping(coast); L2.setStopping(coast);
+   R1.setStopping(coast); R2.setStopping(coast);
+   LiftL.setStopping(hold); LiftR.setStopping(hold);
+   Arm.setStopping(hold); Intake.setStopping(hold);
+
+   // Reset motor positions
+   L1.setPosition(0, degrees); L2.setPosition(0, degrees);
+   R1.setPosition(0, degrees); R2.setPosition(0, degrees);
+   LiftL.setPosition(0, degrees); LiftR.setPosition(0, degrees);
+   Arm.setPosition(0, degrees); Intake.setPosition(0, degrees);
+}
+
+/*================== AUTONOMOUS ==================*/
+void autonomous() {
+   L1.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, false);
+   L2.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, false);
+   R1.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, false);
+   R2.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, true);
+   Intake.spinFor(forward, 3, rotationUnits::rev);
+
+   LiftL.spinFor(forward, 3, rotationUnits::rev);
+   LiftR.spinFor(forward, 3, rotationUnits::rev);
+   L1.spinFor(0.5, rotationUnits::rev, 50, velocityUnits::pct, true);
+   L2.spinFor(0.5, rotationUnits::rev, 50, velocityUnits::pct, true);
+   R1.spinFor(0.5, rotationUnits::rev, 50, velocityUnits::pct, true);
+   R2.spinFor(0.5, rotationUnits::rev, 50, velocityUnits::pct, false);
+
+   L1.spinFor(0.5, rotationUnits::rev, 50, velocityUnits::pct, true);
+   L2.spinFor(0.5, rotationUnits::rev, 50, velocityUnits::pct, true);
+
+   L1.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, false);
+   L2.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, false);
+   R1.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, false);
+   R2.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, true);
+   LiftL.spinFor(forward, 3, rotationUnits::rev);
+   LiftR.spinFor(forward, 3, rotationUnits::rev);
+   Intake.spinFor(reverse, 2, rotationUnits::rev);
+}
+
+bool downMaxBool = false;
+const double LIFT_UP_POS   = 900;   // tune after testing
+const double LIFT_DOWN_POS = 0;
+const double LIFT_SPEED_MAX = 100;
+
+//================ MANUAL PID-LIKE LIFT PRESET =================
+void usercontrol() {
+    const double DEADZONE = 10;
+
+    double leftPowerCurrent  = 0;
+    double rightPowerCurrent = 0;
+    double liftCurrent       = 0;
+    double armCurrent        = 0;
+
+    const double DRIVE_STEP  = 5;
+    const double LIFT_STEP   = 5;
+
+    const double FirstLevel  = 228.6;  // mm
+    const double LIFT_MIN_POS = 100;   // safe min
+    const double LIFT_MAX_POS = 900;   // max height
+
+    int lastUpTrigger    = 0;
+    int lastDownTrigger  = 0;
+    int lastRightTrigger = 0;
+    const int REPEAT_DELAY = 200; // ms
+
+    double liftTargetPosition = 0; // preset target, soft
+
+    while (true) {
+
+    //======== READ ULTRASONIC ========
+    double distanceToObject = inPutSonar.distance(distanceUnits::mm);
+
+    //======== DRIVE ========
+    double forward = Controller.Axis3.position();
+    double turn    = Controller.Axis1.position();
+
+    if (fabs(forward) < DEADZONE) forward = 0;
+    if (fabs(turn) < DEADZONE) turn = 0;
+
+    double leftTarget  = fmax(fmin(forward + turn, 100), -100);
+    double rightTarget = fmax(fmin(forward - turn, 100), -100);
+
+    leftPowerCurrent  = ramp(leftPowerCurrent, leftTarget, DRIVE_STEP);
+    rightPowerCurrent = ramp(rightPowerCurrent, rightTarget, DRIVE_STEP);
+
+    L1.spin(fwd, leftPowerCurrent, pct);
+    L2.spin(fwd, leftPowerCurrent, pct);
+    R1.spin(fwd, rightPowerCurrent, pct);
+    R2.spin(fwd, rightPowerCurrent, pct);
+
+    //================ LIFT =================
+    double liftManual = 0;
+    if (Controller.ButtonL1.pressing()) liftManual = 100;
+    else if (Controller.ButtonL2.pressing()) liftManual = -50;
+
+    double currentLiftPos = (LiftL.position(degrees) + LiftR.position(degrees)) / 2.0;
+    if (currentLiftPos < LIFT_MIN_POS && liftManual < 0) liftManual = 0;
+    if (currentLiftPos > LIFT_MAX_POS && liftManual > 0) liftManual = 0;
+
+    // Preset triggers
+    int now = Brain.Timer.system();
+    if (Controller.ButtonUp.pressing() && now - lastUpTrigger > REPEAT_DELAY) {
+        liftTargetPosition = LIFT_MAX_POS;
+        lastUpTrigger = now;
+    }
+    else if (Controller.ButtonDown.pressing() && now - lastDownTrigger > REPEAT_DELAY) {
+        liftTargetPosition = LIFT_MIN_POS + 50; // middle safe height
+        lastDownTrigger = now;
+    }
+    else if (Controller.ButtonRight.pressing() && distanceToObject < FirstLevel &&
+             now - lastRightTrigger > REPEAT_DELAY) {
+        liftTargetPosition = FirstLevel;
+        lastRightTrigger = now;
+    }
+
+    // Apply lift
+    if (liftManual != 0) {
+        liftCurrent = ramp(liftCurrent, liftManual, LIFT_STEP);
+    } else {
+        double error = liftTargetPosition - currentLiftPos;
+        double power = error * 0.5;
+        if (power > LIFT_SPEED_MAX) power = LIFT_SPEED_MAX;
+        if (power < -LIFT_SPEED_MAX) power = -LIFT_SPEED_MAX;
+        if (fabs(error) < 5) power = 0;
+        liftCurrent = power;
+    }
+    LiftL.spin(fwd, liftCurrent, pct);
+    LiftR.spin(fwd, liftCurrent, pct);
+
+    //================ ARM =================
+    double armTarget = 0;
+    if (Controller.ButtonA.pressing()) armTarget = 50;
+    else if (Controller.ButtonB.pressing()) armTarget = -50;
+
+    armCurrent = ramp(armCurrent, armTarget, 10);
+    Arm.spin(fwd, armCurrent, pct);
+
+    //================ INTAKE =================
+    if (Controller.ButtonR2.pressing()) Intake.spin(fwd, 100, pct);
+    else if (Controller.ButtonR1.pressing()) Intake.spin(fwd, -100, pct);
+    else Intake.stop(hold);
+
+    task::sleep(20);
+  }
+}
+
+
+
+
+
+/*================== MAIN ==================*/
+int main() {
+   pre_auton();
+   Competition.autonomous(autonomous);
+   Competition.drivercontrol(usercontrol);
+
+   while (true) {
+       task::sleep(100);
+   }
+}
