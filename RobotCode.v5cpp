@@ -62,20 +62,25 @@ using namespace vex;
 *  VEX V5 Robot Code – Push Back 2026
 *  Author: Nathan Owens, Caitlin Ndambuki
 *  Tournament-Ready Version
-*  Features:
-*    - Arcade drive: forward/back + turning simultaneously
-*    - Arm moves independently
-*    - Intake spins automatically when arm moves
-*    - Smooth ramping for motors
+*  CONTROLS:
+*    - Left Joystick (Axis3): Forward/Backward
+*    - Right Joystick (Axis1): Turn Left/Right
+*    - L1/L2: Lift control (L1=up, L2=down)
+*    - R1/R2: Intake control (R1=out, R2=in)
+*    - A/B: Arm control
+*    - ButtonUp: Lift preset to max height
+*    - ButtonRight: Lift preset to middle height
+*    - ButtonDown: Lift preset to bottom height
 *
+*  PORT CONFIGURATION:
 *  1 - Intake (blue)
-*  3 - Right Lift(red) LiftR
+*  2 - Arm (blue)
+*  3 - Right Lift (red) LiftR
 *  4 - Back Right Motor (blue) R1
-*  6 - Wifi
 *  9 - Left Lift (red) LiftL
 *  10 - Back left driver (blue) L1
-*  20 - front left (blue) L2
-*  12- Front right driver(blue)R2
+*  12 - Front right driver (blue) R2
+*  20 - Front left (blue) L2
 ******************************************************************************/
 
 /*================== GLOBAL OBJECTS ==================*/
@@ -96,7 +101,7 @@ motor LiftR(PORT3, ratio36_1, true);
 motor Arm(PORT2, ratio36_1, true);
 motor Intake(PORT1, ratio36_1, false);
 
-// Ultrasonic sensor (assume using a VEX V5 Ultrasonic sensor)
+// Ultrasonic sensor
 sonar inPutSonar(Brain.ThreeWirePort.A);
 sonar outPutSonar(Brain.ThreeWirePort.B);
 
@@ -111,28 +116,6 @@ double ramp(double current, double target, double step) {
        if (current < target) current = target;
    }
    return current;
-}
-
-// Lift motor wrapper
-void moveLift(double power) {
-   LiftL.spin(fwd, power, pct);
-   LiftR.spin(fwd, power, pct);
-}
-
-// Move arm independently
-void moveArm(double power) {
-   Arm.spin(fwd, power, pct);
-}
-
-// Intake spins forward automatically whenever the arm moves
-void moveIntakeWithArm(double armPower) {
-  /*
-   if (armPower != 0) {
-       Intake.spin(fwd, 100, pct); // intake spins forward whenever arm moves
-   } else {
-       Intake.stop(hold); // stop intake when arm stops
-   }
-  */
 }
 
 /*================== PRE-AUTONOMOUS ==================*/
@@ -177,12 +160,12 @@ void autonomous() {
    Intake.spinFor(reverse, 2, rotationUnits::rev);
 }
 
-bool downMaxBool = false;
-const double LIFT_UP_POS   = 900;   // tune after testing
-const double LIFT_DOWN_POS = 0;
-const double LIFT_SPEED_MAX = 100;
+/*================== LIFT CONSTANTS ==================*/
+const double LIFT_MAX_POS    = 900;   // full up position (ButtonUp)
+const double LIFT_MIDDLE_POS = 150;   // middle position (ButtonRight) - LOWERED
+const double LIFT_MIN_POS    = 0;     // bottom position (ButtonDown) - LOWERED
 
-//================ MANUAL PID-LIKE LIFT PRESET =================
+/*================== DRIVER CONTROL ==================*/
 void usercontrol() {
     const double DEADZONE = 10;
 
@@ -194,99 +177,124 @@ void usercontrol() {
     const double DRIVE_STEP  = 5;
     const double LIFT_STEP   = 5;
 
-    const double FirstLevel  = 228.6;  // mm
-    const double LIFT_MIN_POS = 100;   // safe min
-    const double LIFT_MAX_POS = 900;   // max height
-
-    int lastUpTrigger    = 0;
-    int lastDownTrigger  = 0;
-    int lastRightTrigger = 0;
-    const int REPEAT_DELAY = 200; // ms
-
-    double liftTargetPosition = 0; // preset target, soft
+    double liftTargetPosition = -1; // -1 means no active preset
+    const double LIFT_kP = 0.8;
+    const double LIFT_TOLERANCE = 10;
 
     while (true) {
 
-    //======== READ ULTRASONIC ========
-    double distanceToObject = inPutSonar.distance(distanceUnits::mm);
+        //======== DRIVE: Left stick forward/back (Axis3), Right stick turn (Axis1) ========
+        double forward = Controller.Axis3.position();  // Left stick Y
+        double turn    = Controller.Axis1.position();  // Right stick X
 
-    //======== DRIVE ========
-    double forward = Controller.Axis3.position();
-    double turn    = Controller.Axis1.position();
+        if (fabs(forward) < DEADZONE) forward = 0;
+        if (fabs(turn) < DEADZONE) turn = 0;
 
-    if (fabs(forward) < DEADZONE) forward = 0;
-    if (fabs(turn) < DEADZONE) turn = 0;
+        double leftTarget  = forward + turn;
+        double rightTarget = forward - turn;
 
-    double leftTarget  = fmax(fmin(forward + turn, 100), -100);
-    double rightTarget = fmax(fmin(forward - turn, 100), -100);
+        // Clamp values
+        if (leftTarget > 100) leftTarget = 100;
+        if (leftTarget < -100) leftTarget = -100;
+        if (rightTarget > 100) rightTarget = 100;
+        if (rightTarget < -100) rightTarget = -100;
 
-    leftPowerCurrent  = ramp(leftPowerCurrent, leftTarget, DRIVE_STEP);
-    rightPowerCurrent = ramp(rightPowerCurrent, rightTarget, DRIVE_STEP);
+        leftPowerCurrent  = ramp(leftPowerCurrent, leftTarget, DRIVE_STEP);
+        rightPowerCurrent = ramp(rightPowerCurrent, rightTarget, DRIVE_STEP);
 
-    L1.spin(fwd, leftPowerCurrent, pct);
-    L2.spin(fwd, leftPowerCurrent, pct);
-    R1.spin(fwd, rightPowerCurrent, pct);
-    R2.spin(fwd, rightPowerCurrent, pct);
+        L1.spin(fwd, leftPowerCurrent, pct);
+        L2.spin(fwd, leftPowerCurrent, pct);
+        R1.spin(fwd, rightPowerCurrent, pct);
+        R2.spin(fwd, rightPowerCurrent, pct);
 
-    //================ LIFT =================
-    double liftManual = 0;
-    if (Controller.ButtonL1.pressing()) liftManual = 100;
-    else if (Controller.ButtonL2.pressing()) liftManual = -50;
+        //======== LIFT CONTROL: L1 = up, L2 = down ========
+        double liftManual = 0;
+        bool manualControl = false;
+        
+        if (Controller.ButtonL1.pressing()) {
+            liftManual = 100;
+            manualControl = true;
+            liftTargetPosition = -1; // cancel preset
+        } 
+        else if (Controller.ButtonL2.pressing()) {
+            liftManual = -50;
+            manualControl = true;
+            liftTargetPosition = -1; // cancel preset
+        }
 
-    double currentLiftPos = (LiftL.position(degrees) + LiftR.position(degrees)) / 2.0;
-    if (currentLiftPos < LIFT_MIN_POS && liftManual < 0) liftManual = 0;
-    if (currentLiftPos > LIFT_MAX_POS && liftManual > 0) liftManual = 0;
+        // Get current lift position
+        double currentLiftPos = (LiftL.position(degrees) + LiftR.position(degrees)) / 2.0;
 
-    // Preset triggers
-    int now = Brain.Timer.system();
-    if (Controller.ButtonUp.pressing() && now - lastUpTrigger > REPEAT_DELAY) {
-        liftTargetPosition = LIFT_MAX_POS;
-        lastUpTrigger = now;
+        // Safety limits for manual (allow going to 0)
+        if (currentLiftPos < 0 && liftManual < 0) liftManual = 0;
+        if (currentLiftPos > LIFT_MAX_POS && liftManual > 0) liftManual = 0;
+
+        //======== LIFT PRESETS: Up/Right/Down buttons ========
+        if (Controller.ButtonUp.pressing()) {
+            liftTargetPosition = LIFT_MAX_POS;
+        }
+        else if (Controller.ButtonRight.pressing()) {
+            liftTargetPosition = LIFT_MIDDLE_POS;
+        }
+        else if (Controller.ButtonDown.pressing()) {
+            liftTargetPosition = LIFT_MIN_POS;
+        }
+
+        //======== APPLY LIFT POWER ========
+        if (manualControl) {
+            // Manual mode
+            liftCurrent = ramp(liftCurrent, liftManual, LIFT_STEP);
+        } 
+        else if (liftTargetPosition >= 0) {
+            // Preset mode
+            double error = liftTargetPosition - currentLiftPos;
+            double power = error * LIFT_kP;
+            
+            // Clamp
+            if (power > 100) power = 100;
+            if (power < -100) power = -100;
+            
+            // Stop if at target
+            if (fabs(error) < LIFT_TOLERANCE) {
+                power = 0;
+            }
+            
+            liftCurrent = power;
+        }
+        else {
+            // No input - stop
+            liftCurrent = ramp(liftCurrent, 0, LIFT_STEP);
+        }
+
+        LiftL.spin(fwd, liftCurrent, pct);
+        LiftR.spin(fwd, liftCurrent, pct);
+
+        //======== ARM CONTROL: A/B buttons ========
+        double armTarget = 0;
+        if (Controller.ButtonA.pressing()) {
+            armTarget = 50;
+        }
+        else if (Controller.ButtonB.pressing()) {
+            armTarget = -50;
+        }
+
+        armCurrent = ramp(armCurrent, armTarget, 10);
+        Arm.spin(fwd, armCurrent, pct);
+
+        //======== INTAKE CONTROL: R2 = in, R1 = out ========
+        if (Controller.ButtonR2.pressing()) {
+            Intake.spin(fwd, 100, pct);
+        }
+        else if (Controller.ButtonR1.pressing()) {
+            Intake.spin(fwd, -100, pct);
+        }
+        else {
+            Intake.stop(hold);
+        }
+
+        task::sleep(20);
     }
-    else if (Controller.ButtonDown.pressing() && now - lastDownTrigger > REPEAT_DELAY) {
-        liftTargetPosition = LIFT_MIN_POS + 50; // middle safe height
-        lastDownTrigger = now;
-    }
-    else if (Controller.ButtonRight.pressing() && distanceToObject < FirstLevel &&
-             now - lastRightTrigger > REPEAT_DELAY) {
-        liftTargetPosition = FirstLevel;
-        lastRightTrigger = now;
-    }
-
-    // Apply lift
-    if (liftManual != 0) {
-        liftCurrent = ramp(liftCurrent, liftManual, LIFT_STEP);
-    } else {
-        double error = liftTargetPosition - currentLiftPos;
-        double power = error * 0.5;
-        if (power > LIFT_SPEED_MAX) power = LIFT_SPEED_MAX;
-        if (power < -LIFT_SPEED_MAX) power = -LIFT_SPEED_MAX;
-        if (fabs(error) < 5) power = 0;
-        liftCurrent = power;
-    }
-    LiftL.spin(fwd, liftCurrent, pct);
-    LiftR.spin(fwd, liftCurrent, pct);
-
-    //================ ARM =================
-    double armTarget = 0;
-    if (Controller.ButtonA.pressing()) armTarget = 50;
-    else if (Controller.ButtonB.pressing()) armTarget = -50;
-
-    armCurrent = ramp(armCurrent, armTarget, 10);
-    Arm.spin(fwd, armCurrent, pct);
-
-    //================ INTAKE =================
-    if (Controller.ButtonR2.pressing()) Intake.spin(fwd, 100, pct);
-    else if (Controller.ButtonR1.pressing()) Intake.spin(fwd, -100, pct);
-    else Intake.stop(hold);
-
-    task::sleep(20);
-  }
 }
-
-
-
-
 
 /*================== MAIN ==================*/
 int main() {
