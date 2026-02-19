@@ -84,7 +84,7 @@ using namespace vex;
 *    - ButtonDown: Lift preset to bottom height
 *
 *  PORT CONFIGURATION:
-*  1 - Intake (blue)
+*  15 - Intake (blue)
 *  2 - Arm (blue)
 *  3 - Right Lift (red) LiftR
 *  4 - Back Right Motor (blue) R1
@@ -114,7 +114,7 @@ motor LiftR(PORT3, ratio36_1, true);
 
 /*================== ARM & INTAKE MOTORS ==================*/
 motor Arm(PORT2, ratio36_1, true);
-motor Intake(PORT1, ratio36_1, false);
+motor Intake(PORT15, ratio36_1, false);
 
 
 
@@ -152,6 +152,8 @@ void pre_auton() {
 
 /*================== AUTONOMOUS ==================*/
 void autonomous() {
+   LiftL.spinFor(forward, 0.5, rotationUnits::rev);
+   LiftR.spinFor(forward, 0.5, rotationUnits::rev);
    L1.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, false);
    L2.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, false);
    R1.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, false);
@@ -183,10 +185,8 @@ void autonomous() {
 
 /*================== LIFT CONSTANTS ==================*/
 const double LIFT_MAX_POS    = 900;   // full up position (ButtonUp)
-const double LIFT_MIDDLE_POS = 150;   // middle position (ButtonRight) - LOWERED
+const double LIFT_MIDDLE_POS = 262;   // middle position (ButtonRight) - LOWERED
 const double LIFT_MIN_POS    = 0;     // bottom position (ButtonDown) - LOWERED
-
-
 /*================== DRIVER CONTROL ==================*/
 void usercontrol() {
   const double DEADZONE = 10;
@@ -367,7 +367,3 @@ int main() {
        task::sleep(100);
    }
 }
-
-
-
-
