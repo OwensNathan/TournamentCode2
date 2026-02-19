@@ -5,13 +5,20 @@
 #include <stdbool.h>
 #include <math.h>
 #include <string.h>
-
 #include "vex.h"
 
-using namespace vex;
 
-// Brain should be defined by default
+using namespace vex;
+/*
+The UltraSonic Sensor must be plugged into adjacent ports
+Only these ones work because of the way vexcode is done: AB, CD, EF, and GH
+The sonar assumes that the port stated is the Input (echo) and the other one is the Output(Trigger)
+*/
+
+
+//Brain should be defined by default
 brain Brain;
+
 
 // START V5 MACROS
 #define waitUntil(condition)                                                   \
@@ -19,11 +26,14 @@ brain Brain;
     wait(5, msec);                                                             \
   } while (!(condition))
 
+
 #define repeat(iterations)                                                     \
   for (int iterator = 0; iterator < iterations; iterator++)
 // END V5 MACROS
 
+
 // Robot configuration code.
+
 
 // generating and setting random seed
 void initializeRandomSeed(){
@@ -31,17 +41,21 @@ void initializeRandomSeed(){
   double batteryCurrent = Brain.Battery.current();
   double batteryVoltage = Brain.Battery.voltage(voltageUnits::mV);
 
+
   // Combine these values into a single integer
   int seed = int(batteryVoltage + batteryCurrent * 100) + systemTime;
+
 
   // Set the seed
   srand(seed);
 }
 
+
 void vexcodeInit() {
   //Initializing random seed.
   initializeRandomSeed();
 }
+
 
 // Helper to make playing sounds from the V5 in VEXcode easier and
 // keeps the code cleaner by making it clear what is happening.
@@ -50,13 +64,17 @@ void playVexcodeSound(const char *soundName) {
   wait(5, msec);
 }
 
+
 #pragma endregion VEXcode Generated Robot Configuration
+
 
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
 
+
 using namespace vex;
+
 
 /******************************************************************************
 *  VEX V5 Robot Code – Push Back 2026
@@ -83,9 +101,11 @@ using namespace vex;
 *  20 - Front left (blue) L2
 ******************************************************************************/
 
+
 /*================== GLOBAL OBJECTS ==================*/
 controller  Controller;
 competition Competition;
+
 
 /*================== DRIVE MOTORS ==================*/
 motor L1(PORT10, ratio36_1, true);
@@ -93,17 +113,18 @@ motor L2(PORT20, ratio36_1, true);
 motor R1(PORT4, ratio36_1, false);
 motor R2(PORT12, ratio36_1, false);
 
+
 /*================== LIFT MOTORS ==================*/
 motor LiftL(PORT9, ratio36_1, false);
 motor LiftR(PORT3, ratio36_1, true);
+
 
 /*================== ARM & INTAKE MOTORS ==================*/
 motor Arm(PORT2, ratio36_1, true);
 motor Intake(PORT1, ratio36_1, false);
 
-// Ultrasonic sensor
-sonar inPutSonar(Brain.ThreeWirePort.A);
-sonar outPutSonar(Brain.ThreeWirePort.B);
+
+
 
 /*================== HELPER FUNCTIONS ==================*/
 // Smooth ramp: current -> target at given step
@@ -118,6 +139,7 @@ double ramp(double current, double target, double step) {
    return current;
 }
 
+
 /*================== PRE-AUTONOMOUS ==================*/
 void pre_auton() {
    // Motor stopping modes
@@ -126,12 +148,14 @@ void pre_auton() {
    LiftL.setStopping(hold); LiftR.setStopping(hold);
    Arm.setStopping(hold); Intake.setStopping(hold);
 
+
    // Reset motor positions
    L1.setPosition(0, degrees); L2.setPosition(0, degrees);
    R1.setPosition(0, degrees); R2.setPosition(0, degrees);
    LiftL.setPosition(0, degrees); LiftR.setPosition(0, degrees);
    Arm.setPosition(0, degrees); Intake.setPosition(0, degrees);
 }
+
 
 /*================== AUTONOMOUS ==================*/
 void autonomous() {
@@ -141,6 +165,7 @@ void autonomous() {
    R2.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, true);
    Intake.spinFor(forward, 3, rotationUnits::rev);
 
+
    LiftL.spinFor(forward, 3, rotationUnits::rev);
    LiftR.spinFor(forward, 3, rotationUnits::rev);
    L1.spinFor(0.5, rotationUnits::rev, 50, velocityUnits::pct, true);
@@ -148,8 +173,10 @@ void autonomous() {
    R1.spinFor(0.5, rotationUnits::rev, 50, velocityUnits::pct, true);
    R2.spinFor(0.5, rotationUnits::rev, 50, velocityUnits::pct, false);
 
+
    L1.spinFor(0.5, rotationUnits::rev, 50, velocityUnits::pct, true);
    L2.spinFor(0.5, rotationUnits::rev, 50, velocityUnits::pct, true);
+
 
    L1.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, false);
    L2.spinFor(3, rotationUnits::rev, 50, velocityUnits::pct, false);
@@ -160,38 +187,48 @@ void autonomous() {
    Intake.spinFor(reverse, 2, rotationUnits::rev);
 }
 
+
 /*================== LIFT CONSTANTS ==================*/
 const double LIFT_MAX_POS    = 900;   // full up position (ButtonUp)
 const double LIFT_MIDDLE_POS = 150;   // middle position (ButtonRight) - LOWERED
 const double LIFT_MIN_POS    = 0;     // bottom position (ButtonDown) - LOWERED
 
+
 /*================== DRIVER CONTROL ==================*/
 void usercontrol() {
     const double DEADZONE = 10;
+
 
     double leftPowerCurrent  = 0;
     double rightPowerCurrent = 0;
     double liftCurrent       = 0;
     double armCurrent        = 0;
 
+
     const double DRIVE_STEP  = 5;
     const double LIFT_STEP   = 5;
+
 
     double liftTargetPosition = -1; // -1 means no active preset
     const double LIFT_kP = 0.8;
     const double LIFT_TOLERANCE = 10;
 
+
     while (true) {
+
 
         //======== DRIVE: Left stick forward/back (Axis3), Right stick turn (Axis1) ========
         double forward = Controller.Axis3.position();  // Left stick Y
         double turn    = Controller.Axis1.position();  // Right stick X
 
+
         if (fabs(forward) < DEADZONE) forward = 0;
         if (fabs(turn) < DEADZONE) turn = 0;
 
+
         double leftTarget  = forward + turn;
         double rightTarget = forward - turn;
+
 
         // Clamp values
         if (leftTarget > 100) leftTarget = 100;
@@ -199,66 +236,91 @@ void usercontrol() {
         if (rightTarget > 100) rightTarget = 100;
         if (rightTarget < -100) rightTarget = -100;
 
+
         leftPowerCurrent  = ramp(leftPowerCurrent, leftTarget, DRIVE_STEP);
         rightPowerCurrent = ramp(rightPowerCurrent, rightTarget, DRIVE_STEP);
-
+        Brain.Screen.clearScreen();
+Brain.Screen.setCursor(1, 1);
+Brain.Screen.print("Drive Train");
         L1.spin(fwd, leftPowerCurrent, pct);
         L2.spin(fwd, leftPowerCurrent, pct);
         R1.spin(fwd, rightPowerCurrent, pct);
         R2.spin(fwd, rightPowerCurrent, pct);
 
+
         //======== LIFT CONTROL: L1 = up, L2 = down ========
         double liftManual = 0;
         bool manualControl = false;
-        
+       
         if (Controller.ButtonL1.pressing()) {
             liftManual = 100;
             manualControl = true;
             liftTargetPosition = -1; // cancel preset
-        } 
+            Brain.Screen.clearScreen();
+Brain.Screen.setCursor(5, 5);
+Brain.Screen.print("L1");
+        }
         else if (Controller.ButtonL2.pressing()) {
             liftManual = -50;
             manualControl = true;
             liftTargetPosition = -1; // cancel preset
+            Brain.Screen.clearScreen();
+Brain.Screen.setCursor(10, 10);
+Brain.Screen.print("L2");
         }
+
 
         // Get current lift position
         double currentLiftPos = (LiftL.position(degrees) + LiftR.position(degrees)) / 2.0;
+
 
         // Safety limits for manual (allow going to 0)
         if (currentLiftPos < 0 && liftManual < 0) liftManual = 0;
         if (currentLiftPos > LIFT_MAX_POS && liftManual > 0) liftManual = 0;
 
+
         //======== LIFT PRESETS: Up/Right/Down buttons ========
         if (Controller.ButtonUp.pressing()) {
             liftTargetPosition = LIFT_MAX_POS;
+            Brain.Screen.clearScreen();
+Brain.Screen.setCursor(15, 15);
+Brain.Screen.print("Up");
         }
         else if (Controller.ButtonRight.pressing()) {
             liftTargetPosition = LIFT_MIDDLE_POS;
+            Brain.Screen.clearScreen();
+Brain.Screen.setCursor(20, 20);
+Brain.Screen.print("Right");
         }
         else if (Controller.ButtonDown.pressing()) {
             liftTargetPosition = LIFT_MIN_POS;
+            Brain.Screen.clearScreen();
+Brain.Screen.setCursor(25, 25);
+Brain.Screen.print("Down");
         }
+
 
         //======== APPLY LIFT POWER ========
         if (manualControl) {
             // Manual mode
             liftCurrent = ramp(liftCurrent, liftManual, LIFT_STEP);
-        } 
+        }
         else if (liftTargetPosition >= 0) {
             // Preset mode
             double error = liftTargetPosition - currentLiftPos;
             double power = error * LIFT_kP;
-            
+           
             // Clamp
             if (power > 100) power = 100;
             if (power < -100) power = -100;
-            
+           
             // Stop if at target
             if (fabs(error) < LIFT_TOLERANCE) {
                 power = 0;
             }
-            
+            Brain.Screen.clearScreen();
+Brain.Screen.setCursor(30, 30);
+Brain.Screen.print("Lift");
             liftCurrent = power;
         }
         else {
@@ -266,35 +328,53 @@ void usercontrol() {
             liftCurrent = ramp(liftCurrent, 0, LIFT_STEP);
         }
 
+
         LiftL.spin(fwd, liftCurrent, pct);
         LiftR.spin(fwd, liftCurrent, pct);
+
 
         //======== ARM CONTROL: A/B buttons ========
         double armTarget = 0;
         if (Controller.ButtonA.pressing()) {
             armTarget = 50;
+            Brain.Screen.clearScreen();
+Brain.Screen.setCursor(35, 35);
+Brain.Screen.print("A");
         }
         else if (Controller.ButtonB.pressing()) {
             armTarget = -50;
+            Brain.Screen.clearScreen();
+Brain.Screen.setCursor(40, 40);
+Brain.Screen.print("B");
         }
+
 
         armCurrent = ramp(armCurrent, armTarget, 10);
         Arm.spin(fwd, armCurrent, pct);
 
+
         //======== INTAKE CONTROL: R2 = in, R1 = out ========
         if (Controller.ButtonR2.pressing()) {
             Intake.spin(fwd, 100, pct);
+            Brain.Screen.clearScreen();
+Brain.Screen.setCursor(45, 45);
+Brain.Screen.print("R2");
         }
         else if (Controller.ButtonR1.pressing()) {
             Intake.spin(fwd, -100, pct);
+            Brain.Screen.clearScreen();
+Brain.Screen.setCursor(50, 50);
+Brain.Screen.print("R1");
         }
         else {
             Intake.stop(hold);
         }
 
+
         task::sleep(20);
     }
 }
+
 
 /*================== MAIN ==================*/
 int main() {
@@ -302,7 +382,12 @@ int main() {
    Competition.autonomous(autonomous);
    Competition.drivercontrol(usercontrol);
 
+
    while (true) {
        task::sleep(100);
    }
 }
+
+
+
+
