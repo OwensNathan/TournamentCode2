@@ -9,13 +9,6 @@
 
 
 using namespace vex;
-/*
-The UltraSonic Sensor must be plugged into adjacent ports
-Only these ones work because of the way vexcode is done: AB, CD, EF, and GH
-The sonar assumes that the port stated is the Input (echo) and the other one is the Output(Trigger)
-*/
-
-
 //Brain should be defined by default
 brain Brain;
 
