@@ -189,183 +189,170 @@ const double LIFT_MIN_POS    = 0;     // bottom position (ButtonDown) - LOWERED
 
 /*================== DRIVER CONTROL ==================*/
 void usercontrol() {
-    const double DEADZONE = 10;
+  const double DEADZONE = 10;
 
+  // Ramping state
+  double leftPowerCurrent  = 0;
+  double rightPowerCurrent = 0;
+  double liftCurrent       = 0;
+  double armCurrent        = 0;
 
-    double leftPowerCurrent  = 0;
-    double rightPowerCurrent = 0;
-    double liftCurrent       = 0;
-    double armCurrent        = 0;
+  const double DRIVE_STEP = 5;
+  const double LIFT_STEP  = 5;
+  const double ARM_STEP   = 10;
 
+  // Lift preset control
+  double liftTargetPosition = -1; // -1 means no active preset
+  const double LIFT_kP = 0.8;
+  const double LIFT_TOLERANCE = 10;
 
-    const double DRIVE_STEP  = 5;
-    const double LIFT_STEP   = 5;
+  int hudCounter = 0;
 
+  while (true) {
+    //==================== DRIVE (always active) ====================
+    double forward = Controller.Axis3.position(); // forward/back
+    double turn    = Controller.Axis1.position(); // left/right
 
-    double liftTargetPosition = -1; // -1 means no active preset
-    const double LIFT_kP = 0.8;
-    const double LIFT_TOLERANCE = 10;
+    if (fabs(forward) < DEADZONE) forward = 0;
+    if (fabs(turn) < DEADZONE) turn = 0;
 
+    double leftTarget  = forward + turn;
+    double rightTarget = forward - turn;
 
-    while (true) {
+    // Clamp
+    if (leftTarget > 100) leftTarget = 100;
+    if (leftTarget < -100) leftTarget = -100;
+    if (rightTarget > 100) rightTarget = 100;
+    if (rightTarget < -100) rightTarget = -100;
 
+    leftPowerCurrent  = ramp(leftPowerCurrent, leftTarget, DRIVE_STEP);
+    rightPowerCurrent = ramp(rightPowerCurrent, rightTarget, DRIVE_STEP);
 
-        //======== DRIVE: Left stick forward/back (Axis3), Right stick turn (Axis1) ========
-        double forward = Controller.Axis3.position();  // Left stick Y
-        double turn    = Controller.Axis1.position();  // Right stick X
+    L1.spin(fwd, leftPowerCurrent, pct);
+    L2.spin(fwd, leftPowerCurrent, pct);
+    R1.spin(fwd, rightPowerCurrent, pct);
+    R2.spin(fwd, rightPowerCurrent, pct);
 
+    //==================== LIFT (manual overrides presets) ====================
+    // Read position
+    double currentLiftPos =
+      (LiftL.position(degrees) + LiftR.position(degrees)) / 2.0;
 
-        if (fabs(forward) < DEADZONE) forward = 0;
-        if (fabs(turn) < DEADZONE) turn = 0;
+    // Manual input (highest priority for lift)
+    double liftManual = 0;
+    bool liftManualActive = false;
 
-
-        double leftTarget  = forward + turn;
-        double rightTarget = forward - turn;
-
-
-        // Clamp values
-        if (leftTarget > 100) leftTarget = 100;
-        if (leftTarget < -100) leftTarget = -100;
-        if (rightTarget > 100) rightTarget = 100;
-        if (rightTarget < -100) rightTarget = -100;
-
-
-        leftPowerCurrent  = ramp(leftPowerCurrent, leftTarget, DRIVE_STEP);
-        rightPowerCurrent = ramp(rightPowerCurrent, rightTarget, DRIVE_STEP);
-        Brain.Screen.clearScreen();
-Brain.Screen.setCursor(1, 1);
-Brain.Screen.print("Drive Train");
-        L1.spin(fwd, leftPowerCurrent, pct);
-        L2.spin(fwd, leftPowerCurrent, pct);
-        R1.spin(fwd, rightPowerCurrent, pct);
-        R2.spin(fwd, rightPowerCurrent, pct);
-
-
-        //======== LIFT CONTROL: L1 = up, L2 = down ========
-        double liftManual = 0;
-        bool manualControl = false;
-       
-        if (Controller.ButtonL1.pressing()) {
-            liftManual = 100;
-            manualControl = true;
-            liftTargetPosition = -1; // cancel preset
-            Brain.Screen.clearScreen();
-Brain.Screen.setCursor(5, 5);
-Brain.Screen.print("L1");
-        }
-        else if (Controller.ButtonL2.pressing()) {
-            liftManual = -50;
-            manualControl = true;
-            liftTargetPosition = -1; // cancel preset
-            Brain.Screen.clearScreen();
-Brain.Screen.setCursor(10, 10);
-Brain.Screen.print("L2");
-        }
-
-
-        // Get current lift position
-        double currentLiftPos = (LiftL.position(degrees) + LiftR.position(degrees)) / 2.0;
-
-
-        // Safety limits for manual (allow going to 0)
-        if (currentLiftPos < 0 && liftManual < 0) liftManual = 0;
-        if (currentLiftPos > LIFT_MAX_POS && liftManual > 0) liftManual = 0;
-
-
-        //======== LIFT PRESETS: Up/Right/Down buttons ========
-        if (Controller.ButtonUp.pressing()) {
-            liftTargetPosition = LIFT_MAX_POS;
-            Brain.Screen.clearScreen();
-Brain.Screen.setCursor(15, 15);
-Brain.Screen.print("Up");
-        }
-        else if (Controller.ButtonRight.pressing()) {
-            liftTargetPosition = LIFT_MIDDLE_POS;
-            Brain.Screen.clearScreen();
-Brain.Screen.setCursor(20, 20);
-Brain.Screen.print("Right");
-        }
-        else if (Controller.ButtonDown.pressing()) {
-            liftTargetPosition = LIFT_MIN_POS;
-            Brain.Screen.clearScreen();
-Brain.Screen.setCursor(25, 25);
-Brain.Screen.print("Down");
-        }
-
-
-        //======== APPLY LIFT POWER ========
-        if (manualControl) {
-            // Manual mode
-            liftCurrent = ramp(liftCurrent, liftManual, LIFT_STEP);
-        }
-        else if (liftTargetPosition >= 0) {
-            // Preset mode
-            double error = liftTargetPosition - currentLiftPos;
-            double power = error * LIFT_kP;
-           
-            // Clamp
-            if (power > 100) power = 100;
-            if (power < -100) power = -100;
-           
-            // Stop if at target
-            if (fabs(error) < LIFT_TOLERANCE) {
-                power = 0;
-            }
-            Brain.Screen.clearScreen();
-Brain.Screen.setCursor(30, 30);
-Brain.Screen.print("Lift");
-            liftCurrent = power;
-        }
-        else {
-            // No input - stop
-            liftCurrent = ramp(liftCurrent, 0, LIFT_STEP);
-        }
-
-
-        LiftL.spin(fwd, liftCurrent, pct);
-        LiftR.spin(fwd, liftCurrent, pct);
-
-
-        //======== ARM CONTROL: A/B buttons ========
-        double armTarget = 0;
-        if (Controller.ButtonA.pressing()) {
-            armTarget = 50;
-            Brain.Screen.clearScreen();
-Brain.Screen.setCursor(35, 35);
-Brain.Screen.print("A");
-        }
-        else if (Controller.ButtonB.pressing()) {
-            armTarget = -50;
-            Brain.Screen.clearScreen();
-Brain.Screen.setCursor(40, 40);
-Brain.Screen.print("B");
-        }
-
-
-        armCurrent = ramp(armCurrent, armTarget, 10);
-        Arm.spin(fwd, armCurrent, pct);
-
-
-        //======== INTAKE CONTROL: R2 = in, R1 = out ========
-        if (Controller.ButtonR2.pressing()) {
-            Intake.spin(fwd, 100, pct);
-            Brain.Screen.clearScreen();
-Brain.Screen.setCursor(45, 45);
-Brain.Screen.print("R2");
-        }
-        else if (Controller.ButtonR1.pressing()) {
-            Intake.spin(fwd, -100, pct);
-            Brain.Screen.clearScreen();
-Brain.Screen.setCursor(50, 50);
-Brain.Screen.print("R1");
-        }
-        else {
-            Intake.stop(hold);
-        }
-
-
-        task::sleep(20);
+    if (Controller.ButtonL1.pressing()) {
+      liftManual = 100;
+      liftManualActive = true;
+      liftTargetPosition = -1; // cancel any preset
+    } else if (Controller.ButtonL2.pressing()) {
+      liftManual = -50;
+      liftManualActive = true;
+      liftTargetPosition = -1; // cancel any preset
     }
+
+    // Preset buttons only apply if NOT manually controlling lift
+    // (Once pressed, they stay latched via liftTargetPosition.)
+    if (!liftManualActive) {
+      if (Controller.ButtonUp.pressing()) {
+        liftTargetPosition = LIFT_MAX_POS;
+      } else if (Controller.ButtonRight.pressing()) {
+        liftTargetPosition = LIFT_MIDDLE_POS;
+      } else if (Controller.ButtonDown.pressing()) {
+        liftTargetPosition = LIFT_MIN_POS;
+      }
+    }
+
+    // Apply lift power continuously (this is what makes presets actually work)
+    const char* liftModeText = "HOLD/IDLE";
+    if (liftManualActive) {
+      liftModeText = "MANUAL";
+
+      // Safety limits for manual (allow going to 0)
+      if (currentLiftPos < 0 && liftManual < 0) liftManual = 0;
+      if (currentLiftPos > LIFT_MAX_POS && liftManual > 0) liftManual = 0;
+
+      liftCurrent = ramp(liftCurrent, liftManual, LIFT_STEP);
+    } else if (liftTargetPosition >= 0) {
+      liftModeText = "PRESET";
+
+      double error = liftTargetPosition - currentLiftPos;
+      double power = error * LIFT_kP;
+
+      // Clamp
+      if (power > 100) power = 100;
+      if (power < -100) power = -100;
+
+      // Stop at target
+      if (fabs(error) < LIFT_TOLERANCE) power = 0;
+
+      liftCurrent = power;
+    } else {
+      liftCurrent = ramp(liftCurrent, 0, LIFT_STEP);
+    }
+
+    LiftL.spin(fwd, liftCurrent, pct);
+    LiftR.spin(fwd, liftCurrent, pct);
+
+    //==================== ARM (independent) ====================
+    double armTarget = 0;
+    const char* armText = "STOP";
+    if (Controller.ButtonA.pressing()) {
+      armTarget = 50;
+      armText = "A (UP/FWD)";
+    } else if (Controller.ButtonB.pressing()) {
+      armTarget = -50;
+      armText = "B (DOWN/REV)";
+    }
+
+    armCurrent = ramp(armCurrent, armTarget, ARM_STEP);
+    Arm.spin(fwd, armCurrent, pct);
+
+    //==================== INTAKE (independent) ====================
+    const char* intakeText = "STOP";
+    if (Controller.ButtonR2.pressing()) {
+      Intake.spin(fwd, 100, pct);     // in
+      intakeText = "R2 (IN)";
+    } else if (Controller.ButtonR1.pressing()) {
+      Intake.spin(fwd, -100, pct);    // out
+      intakeText = "R1 (OUT)";
+    } else {
+      Intake.stop(hold);
+    }
+
+    //==================== HUD / DEBUG PRINTS ====================
+    // Update a few times a second to avoid flicker/slowdown
+    hudCounter++;
+    if (hudCounter >= 5) { // 5 * 20ms = 100ms
+      hudCounter = 0;
+
+      Brain.Screen.clearScreen();
+      Brain.Screen.setCursor(1, 1);
+      Brain.Screen.print("DRIVE: Ax3=%3.0f Ax1=%3.0f  L=%3.0f R=%3.0f",
+                         forward, turn, leftTarget, rightTarget);
+
+      Brain.Screen.setCursor(2, 1);
+      Brain.Screen.print("LIFT: mode=%s pos=%4.0f tgt=%4.0f pwr=%4.0f",
+                         liftModeText, currentLiftPos, liftTargetPosition, liftCurrent);
+
+      Brain.Screen.setCursor(3, 1);
+      Brain.Screen.print("PRESETS: Up=%d Right=%d Down=%d  MANUAL: L1=%d L2=%d",
+                         Controller.ButtonUp.pressing(),
+                         Controller.ButtonRight.pressing(),
+                         Controller.ButtonDown.pressing(),
+                         Controller.ButtonL1.pressing(),
+                         Controller.ButtonL2.pressing());
+
+      Brain.Screen.setCursor(4, 1);
+      Brain.Screen.print("ARM: %s  pwr=%4.0f", armText, armCurrent);
+
+      Brain.Screen.setCursor(5, 1);
+      Brain.Screen.print("INTAKE: %s", intakeText);
+    }
+
+    task::sleep(20);
+  }
 }
 
 
