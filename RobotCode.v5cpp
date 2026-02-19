@@ -183,7 +183,7 @@ void autonomous() {
 
 /*================== LIFT CONSTANTS ==================*/
 const double LIFT_MAX_POS    = 900;   // full up position (ButtonUp)
-const double LIFT_MIDDLE_POS = 150;   // middle position (ButtonRight) - LOWERED
+const double LIFT_MIDDLE_POS = 131;   // middle position (ButtonRight)
 const double LIFT_MIN_POS    = 0;     // bottom position (ButtonDown) - LOWERED
 
 
